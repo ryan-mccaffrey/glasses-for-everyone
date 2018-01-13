@@ -1,0 +1,67 @@
+Comp vision notes:
+1. dlib + OpenCV allows for face classification + feature classification. See
+https://docs.opencv.org/3.1.0/d7/d8b/tutorial_py_face_detection.html#gsc.tab=0
+for a project that does eye detection. Can then measure angle + size of eyes to determine what to do with glasses
+
+2. Alternatively, find face classification algorithm that measures head tilt some other way, perform rotation on the image
+to frontalize it, then do Haar-like rectangles to find eyes. Scale glasses and place them, and then rotate glasses and image
+back to original orientation
+
+
+
+Haar cascade vs deepnet solution:
+ -- for detecting eyes and faces, will want to test differences between haar cascade and deepnet
+
+
+ Notes for initializing AWS instance and connecting to it:
+  - For connecting: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/AccessingInstancesLinux.html
+  - The command to connect: ssh -i ryan-computer-vision-key.pem ubuntu@ec2-52-55-242-160.compute-1.amazonaws.com
+  - To do SCP: scp -i ryan-computer-vision-key.pem file_here ubuntu@ec2-52-55-242-160.compute-1.amazonaws.com:destination_here
+
+Questions to ask:
+ - Would it be reasonable to compare a Haar Cascade classifier vs CNN classifier on faces and eyes and see which one does better?
+ - Followup: What's the standard way to measure accuracy in this case? Would it be a simple testing accuracy on face vs. non-face images?
+   How about testing on images with multiple faces on it? (or should i not do this)
+ - Should i be adhering to certain image dimensions when training the classifier? I've seen make negative images 100x100 and faces 50x50,
+   but unsure how reliable/important this is
+ - 
+
+ Manually place eyes on set of like 20 images, don't use images in training set
+ Test each classifier on the perfect images, create some sort of distance function (distance from centers)
+ (intersection/union of bounding boxes -- IOU)
+
+
+Game plan:
+ - Use both the Haar cascade and CNN tensorflow out-of-box solutions to find eyes. Test which one is more accurate (somehow)
+   - while it's accepted that CNNs are usually better nowadays, are their bounding boxes more accurate, or just the rate at which they recognize?
+   - In review: mention that generally known that CNNs are more accurate for object detection, but question the accuracy of the detection? Can a Haar Cascade detector locate eyes more accurately than a CNN?
+ - Take the better method and use it to place the glasses. Measure this against a small set of 20 images that are perfectly labelled.
+
+Glasses:
+ Regular: Width 600px, height 205px. 76px from top of image to bottom of nose frame
+ Sunglasses: Width 600px, height 209px
+
+
+Interesting assumption: head always taller than wider?
+
+Bounding boxes on ellipse:
+https://stackoverflow.com/questions/87734/how-do-you-calculate-the-axis-aligned-bounding-box-of-an-ellipse
+
+REferences:
+CNN face detection (using FaceNet): http://jekel.me/2017/How-to-detect-faces-using-facenet/
+Haar cascade face + eyes detection: opencv tutorial, 
+comparision of CNN vs Haar: https://dzone.com/articles/cnn-vs-cascade-classifiers-for-object-detection
+
+Face database: FDDB: Face Detection Data Set and Benchmark at http://vis-www.cs.umass.edu/fddb/
+Uses Faces in the Wild for faces, then provides annotations
+
+in fold 2, 285 images with total of 519 faces
+first image in fold 2:
+2002/07/28/big/img_416
+[(53.8011831203448, 21.353383418584098, 88.95143375931039, 121.82969316283182), (285.3230637867992, 10.930149311060417, 71.56117442640164, 105.08978737787916), (346.7922990576719, 79.57017142820564, 36.134583884656195, 47.90292114358871)]
+
+
+****************************************************
+FACE DETECTION RESULTS:
+
+
