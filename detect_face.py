@@ -2,6 +2,7 @@
 # from __future__ import division
 # from __future__ import print_function
 
+from datetime import datetime
 from scipy import misc
 import tensorflow as tf
 import os
@@ -175,7 +176,7 @@ def test_detection(fold_num, file_names, face_images, face_labels):
         rows, cols, _ = image.shape
         
         # use predictor
-        predictions = haar_face_detect(image, 1.1, 5)
+        predictions = haar_face_detect(image, 1.2, 5)
         # predictions = cnn_face_detect(image)
 
         total_faces += len(label_set)
@@ -221,7 +222,7 @@ def test_on_one_image(file_names, face_labels):
     print('found file at index {}'.format(i))
 
     # faces = cnn_face_detect(img)
-    faces = haar_face_detect(img, 1.1, 5)
+    faces = haar_face_detect(img, 1.3, 5)
     print("detections: (x,y,w,h)")
     for (x,y,w,h) in faces:
         print(x,y,w,h)
@@ -250,6 +251,7 @@ def test_on_one_image(file_names, face_labels):
 # 
 def main():
     total_correct, total_faces = 0, 0
+    start_time = datetime.now()
     for fold_num in [2,3,4,5]:
         img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
         face_images = get_image_list_from_file(img_list_file)
@@ -261,9 +263,11 @@ def main():
         total_correct += num_correct
         total_faces += num_faces
 
+    delta = datetime.now() - start_time
     print('******** TOTALS ***********')
     print('found {}/{} faces'.format(total_correct, total_faces))
     print('accuracy: {}'.format(total_correct/total_faces))
+    print('Time elapsed (hh:mm:ss.ms) {}'.format(delta))
 
 def test_one_image():
     # test_on_one_image(file_names, face_labels)

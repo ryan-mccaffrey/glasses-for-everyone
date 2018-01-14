@@ -72,9 +72,10 @@ faces to be accidentally detected (false positives), while making ranges too sma
 Face detection accuracies were reported with these ranges used.
 
 For Haar cascade detector:
-scale factor values:
-1.3, 1326/2067 faces, 0.6415094339622641
-1.1, 379 out of 519 faces, 0.7302504816955684
+scale factor values: (time is hh:mm:ss.ms)
+1.3 and 5, 1326/2067 faces, 0.6415094339622641, 0:00:21.676171
+1.2 and 5, 1424/2067 faces, 0.6889211417513305
+1.1 and 5, 1542/2067 faces, 0.7460087082728593
 
 CNN detector:
 using cv2 read: 0.7418111753371869
