@@ -4,6 +4,7 @@ import numpy as np
 import imutils
 from scipy import misc
 from PIL import Image
+from detect_face import hog_face_detect
 import math
 import pickle
 import dlib
@@ -14,43 +15,38 @@ GLASSES_WIDTH_PX = 600
 GLASSES_HEIGHT_PX = 209
 
 eye_cascade = cv2.CascadeClassifier('src/haarcascades/haarcascade_eye.xml')
-dlib_face_detector = dlib.get_frontal_face_detector()
+
 dlib_face_struct_predictor = dlib.shape_predictor('src/dlib/shape_predictor_68_face_landmarks.dat')
 
-def dlib_detect_eyes(image_list, face_list, dlib_rects=True):
+def dlib_detect_eyes(image, face_list, dlib_rects=True):
     # if not a list of dlib rectangles, convert faces so that they are
-    assert type(image_list) == list
-    assert type(face_list) == list
     if not dlib_rects:
         new_face_list = []
-        for face_set in face_list:
-            face_rects = []
-            for (x,y,w,h) in face_set:
-                face_rects.append(dlib.rectangle(x, y, x+w, y+h))
-            new_face_list.append(face_rects)
+        for (x,y,w,h) in face_list:    
+            face_rects.append(dlib.rectangle(x, y, x+w, y+h))
         face_list = new_face_list
 
     # Iterates over set of faces in each image
     eye_list = []
-    for image, face_set in zip(image_list, face_list):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    for rect in face_list:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        eye_set = []
-        for rect in face_set:
-            shape = dlib_face_struct_predictor(gray, rect)
-            shape = face_utils.shape_to_np(shape)
-            a, b = face_utils.FACIAL_LANDMARKS_IDXS['right_eye']
-            c, d = face_utils.FACIAL_LANDMARKS_IDXS['left_eye']
-            # print(np.array(shape[a:b]))
-            eye_tuple = (np.array(shape[a:b]), np.array(shape[c:d]))
-            eye_set.append(eye_tuple)
-            # print(eye_set)
-        eye_list.append(eye_set)
+        
+        shape = dlib_face_struct_predictor(gray, rect)
+        shape = face_utils.shape_to_np(shape)
+        a, b = face_utils.FACIAL_LANDMARKS_IDXS['right_eye']
+        c, d = face_utils.FACIAL_LANDMARKS_IDXS['left_eye']
+        # print(np.array(shape[a:b]))
+        eye_tuple = (np.array(shape[a:b]), np.array(shape[c:d]))
+        eye_list.append(eye_tuple)
+        # print(eye_set)
+    
     return eye_list
 
 def place_glasses(file_name, eye_list):
     # pre-opens the files
-    face_img = Image.open(file_name)
-    glasses_img = Image.open('img/black-sunglasses.png')
+    face_im = Image.open(file_name)
+    glasses_im = Image.open('img/black-sunglasses.png')
 
     # iterate over each pair of eyes in the given image
     for right_eye, left_eye in eye_list:
@@ -134,7 +130,7 @@ def main():
             for (x,y) in right_eye:
                 cv2.circle(clone, (x, y), 1, (0, 0, 255), -1)
             for (x,y) in left_eye:
-                print(x,y)
+                # print(x,y)
                 cv2.circle(clone, (x, y), 1, (0, 255, 0), -1)
 
             # compute centroids of eyes
@@ -231,9 +227,16 @@ def rotate_glasses():
     # im.rotate(45).show()
     # im.rotate(45, expand=True).show()
 
+def main2():
+    im = cv2.imread('img/olga.jpg')
+    faces = hog_face_detect(im)
+    eyes = dlib_detect_eyes(im, faces)
+    place_glasses('img/olga.jpg', eyes)
+
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    main2()
     # rotate_glasses()
 

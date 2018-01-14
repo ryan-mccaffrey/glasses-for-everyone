@@ -16,6 +16,9 @@ import dlib
 # Global variables
 # ============================================
 IMAGE_PREFIX = 'img/FDDB-pics'
+AVG_FACE_HEIGHT = 142.58539351061276
+AVG_FACE_WIDTH = 94.11600875170973
+
 gpu_memory_fraction = 1.0
 minsize = 50 # minimum size of face
 threshold = [0.6, 0.7, 0.7]  # three steps's threshold
@@ -30,7 +33,7 @@ dlib_face_detector = dlib.get_frontal_face_detector()
 
 # Uses the HOG face detection algorithm internal in the dlib library
 def hog_face_detect(image):
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     rects = dlib_face_detector(gray, 1)
     return rects
 
@@ -90,7 +93,12 @@ def get_box_from_label(major, minor, angle, h, k):
     comp_x = lambda t, h, a, b, phi: h + a*math.cos(t)*math.cos(phi) - b*math.sin(t)*math.sin(phi)
     comp_y = lambda t, k, a, b, phi: k + b*math.sin(t)*math.cos(phi) + a*math.cos(t)*math.sin(phi)
 
+    # before any computation done, check if angle is 0
+    if angle == 0:
+        return (h - minor/2, k - major/2, minor, major)
+
     radians = (angle * math.pi) / 180
+
     
     # take gradient of ellipse equations with respect to t and set to 0. Yields
     # 0 = dx/dt = -a*sin(t)*cos(phi) - b*cos(t)*sin(phi)
@@ -158,40 +166,95 @@ def retrieve_face_list(fold_num):
 # Testing methods
 # ============================================
 
-def test_haar(face_images, face_labels):
+def test_haar(file_names, face_images, face_labels):
     total_faces, num_correct = 0, 0
     count = 0
     for image, label_set in zip(face_images, face_labels):
+        file = file_names[count]
         count += 1
         print('image num: {}'.format(count))
+        print('file name: {}'.format(file))
         rows, cols, _ = image.shape
         
         # use predictor
-        # predictions = haar_face_detect(image, 1.3, 5)
-        predictions = cnn_face_detect(image)
+        predictions = haar_face_detect(image, 1.3, 5)
+        # predictions = cnn_face_detect(image)
 
         # sort labels by their centers
-        label_set = sorted(label_set, key=lambda label: (label[0] + label[2]/2, label[1] + label[3]/2))
-        predictions = sorted(predictions, key=lambda label: (label[0] + label[2]/2, label[1] + label[3]/2))
+        # label_set = sorted(label_set, key=lambda label: (label[0] + label[2]/2, label[1] + label[3]/2))
+        # predictions = sorted(predictions, key=lambda label: (label[0] + label[2]/2, label[1] + label[3]/2))
 
         total_faces += len(label_set)
-        for i in range(len(label_set)):
-        # for label, prediction in zip(label_set, predictions):
-            if i >= len(predictions):
-                break
-
-            x_l, y_l, w_l, h_l = label_set[i]
-            center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
-            x_p, y_p, w_p, h_p = predictions[i]
+        faces_found_in_img = 0
+        # for i in range(len(label_set)):
+        for prediction in predictions:
+            found_one = False
+            x_p, y_p, w_p, h_p = prediction
             center_px, center_py = x_p + w_p/2, y_p + h_p/2
+            
+            for label in label_set:
+                x_l, y_l, w_l, h_l = label
+                center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
 
-            if (abs(center_lx - center_px) < .1*cols and abs(center_ly - center_py) < .1*rows):
-                num_correct += 1
+                if (abs(center_lx - center_px) < .4*AVG_FACE_WIDTH and abs(center_ly - center_py) < .4*AVG_FACE_HEIGHT
+                    and .5*w_l <= w_p and w_p <= 1.5*w_l and .5*h_l <= h_p and h_p <= 1.5*h_l):
+                    # num_correct += 1
+                    print('yes')
+                    found_one = True
+                    faces_found_in_img += 1
+                    break
+            
+            print(found_one)
+            if found_one is False:
+                print('no')
 
+        if faces_found_in_img > len(predictions):
+            faces_found_in_img = len(predictions)
+        num_correct += faces_found_in_img
+
+        print('found {} of {} faces in this image'.format(faces_found_in_img, len(label_set)))
 
 
     print("found {} out of {} faces".format(num_correct, total_faces))
     print("accuracy: {}".format(num_correct/total_faces))
+
+def test_on_one_image(file_names, face_labels):
+    name = '2002/08/07/big/img_1393'
+    img = cv2.imread('img/FDDB-pics/{}.jpg'.format(name))
+
+    index = -1
+    for i, file in enumerate(file_names):
+        if name in file:
+            index = i
+            break
+
+    print('found file at index {}'.format(i))
+
+    # faces = cnn_face_detect(img)
+    faces = haar_face_detect(img, 1.3, 5)
+    print("detections: (x,y,w,h)")
+    for (x,y,w,h) in faces:
+        print(x,y,w,h)
+        cv2.rectangle(img,(int(x),int(y)),(int(x+w),int(y+h)),(255,0,0),2)
+
+    print('labels:')
+    print(face_labels[i])
+
+
+    plt.figure()
+    plt.imshow(img)
+    plt.show()
+
+
+    # file name: 2002/08/19/big/img_353
+    # found 5 of 5 faces in this image
+    # image num: 124
+    # file name: 2002/08/19/big/img_350
+    # found 0 of 5 faces in this image
+    # image num: 125
+    # file name: 2002/08/05/big/img_3392
+    # found 0 of 4 faces in this image
+
 
 # The main method is used to compare the accuracies of the FaceNet detector and Haar Cascade detector
 # 
@@ -201,7 +264,10 @@ def main():
     face_images = get_image_list_from_file(img_list_file)
     face_labels = retrieve_face_list(fold_num)
 
-    test_haar(face_images, face_labels)
+    with open(img_list_file, 'r') as f:
+        file_names = [x.rstrip() for x in f.readlines()]
+    # test_haar(file_names, face_images, face_labels)
+    test_on_one_image(file_names, face_labels)
 
     # haar_count, cnn_count, hog_count = 0, 0, 0
     # for image, label_set in zip(face_images, face_labels):

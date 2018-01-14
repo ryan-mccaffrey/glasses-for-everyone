@@ -64,4 +64,14 @@ first image in fold 2:
 ****************************************************
 FACE DETECTION RESULTS:
 
+2002/07/21/big/img_202
+
+file name: 2002/08/19/big/img_353
+found 5 of 5 faces in this image
+image num: 124
+file name: 2002/08/19/big/img_350
+found 0 of 5 faces in this image
+image num: 125
+file name: 2002/08/05/big/img_3392
+found 0 of 4 faces in this image
 
