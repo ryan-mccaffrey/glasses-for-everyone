@@ -166,29 +166,22 @@ def retrieve_face_list(fold_num):
 # Testing methods
 # ============================================
 
-def test_haar(file_names, face_images, face_labels):
+def test_detection(fold_num, file_names, face_images, face_labels):
     total_faces, num_correct = 0, 0
     count = 0
     for image, label_set in zip(face_images, face_labels):
         file = file_names[count]
         count += 1
-        print('image num: {}'.format(count))
-        print('file name: {}'.format(file))
         rows, cols, _ = image.shape
         
         # use predictor
-        predictions = haar_face_detect(image, 1.3, 5)
+        predictions = haar_face_detect(image, 1.1, 5)
         # predictions = cnn_face_detect(image)
-
-        # sort labels by their centers
-        # label_set = sorted(label_set, key=lambda label: (label[0] + label[2]/2, label[1] + label[3]/2))
-        # predictions = sorted(predictions, key=lambda label: (label[0] + label[2]/2, label[1] + label[3]/2))
 
         total_faces += len(label_set)
         faces_found_in_img = 0
         # for i in range(len(label_set)):
         for prediction in predictions:
-            found_one = False
             x_p, y_p, w_p, h_p = prediction
             center_px, center_py = x_p + w_p/2, y_p + h_p/2
             
@@ -197,29 +190,26 @@ def test_haar(file_names, face_images, face_labels):
                 center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
 
                 if (abs(center_lx - center_px) < .4*AVG_FACE_WIDTH and abs(center_ly - center_py) < .4*AVG_FACE_HEIGHT
-                    and .5*w_l <= w_p and w_p <= 1.5*w_l and .5*h_l <= h_p and h_p <= 1.5*h_l):
+                    and .5*w_l < w_p and w_p < 1.5*w_l and .5*h_l < h_p and h_p < 1.5*h_l):
                     # num_correct += 1
-                    print('yes')
-                    found_one = True
                     faces_found_in_img += 1
                     break
-            
-            print(found_one)
-            if found_one is False:
-                print('no')
 
+        # in case faces are somehow really close together and overflow? shouldnt be possible now
         if faces_found_in_img > len(predictions):
             faces_found_in_img = len(predictions)
+
         num_correct += faces_found_in_img
 
-        print('found {} of {} faces in this image'.format(faces_found_in_img, len(label_set)))
+        # print('found {} of {} faces in this image'.format(faces_found_in_img, len(label_set)))
 
 
-    print("found {} out of {} faces".format(num_correct, total_faces))
+    print("found {} out of {} faces in ".format(num_correct, total_faces))
     print("accuracy: {}".format(num_correct/total_faces))
+    return num_correct, total_faces
 
 def test_on_one_image(file_names, face_labels):
-    name = '2002/08/07/big/img_1393'
+    name = '2002/08/05/big/img_3666'
     img = cv2.imread('img/FDDB-pics/{}.jpg'.format(name))
 
     index = -1
@@ -231,7 +221,7 @@ def test_on_one_image(file_names, face_labels):
     print('found file at index {}'.format(i))
 
     # faces = cnn_face_detect(img)
-    faces = haar_face_detect(img, 1.3, 5)
+    faces = haar_face_detect(img, 1.1, 5)
     print("detections: (x,y,w,h)")
     for (x,y,w,h) in faces:
         print(x,y,w,h)
@@ -259,24 +249,25 @@ def test_on_one_image(file_names, face_labels):
 # The main method is used to compare the accuracies of the FaceNet detector and Haar Cascade detector
 # 
 def main():
-    fold_num = 2
-    img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
-    face_images = get_image_list_from_file(img_list_file)
-    face_labels = retrieve_face_list(fold_num)
+    total_correct, total_faces = 0, 0
+    for fold_num in [2,3,4,5]:
+        img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
+        face_images = get_image_list_from_file(img_list_file)
+        face_labels = retrieve_face_list(fold_num)
 
-    with open(img_list_file, 'r') as f:
-        file_names = [x.rstrip() for x in f.readlines()]
-    # test_haar(file_names, face_images, face_labels)
-    test_on_one_image(file_names, face_labels)
+        with open(img_list_file, 'r') as f:
+            file_names = [x.rstrip() for x in f.readlines()]
+        num_correct, num_faces = test_detection(fold_num, file_names, face_images, face_labels)
+        total_correct += num_correct
+        total_faces += num_faces
 
-    # haar_count, cnn_count, hog_count = 0, 0, 0
-    # for image, label_set in zip(face_images, face_labels):
-    # pass
+    print('******** TOTALS ***********')
+    print('found {}/{} faces'.format(total_correct, total_faces))
+    print('accuracy: {}'.format(total_correct/total_faces))
 
-    # label_set = [(2,2,6,6), (0,0,2,2), (3,3,2,2)]
-    # label_set = sorted(label_set, key=lambda label: (label[0] + label[2]/2, label[1] + label[3]/2))
-    # print(label_set)
-    # print(5/2)
+def test_one_image():
+    # test_on_one_image(file_names, face_labels)
+    pass
 
 
 

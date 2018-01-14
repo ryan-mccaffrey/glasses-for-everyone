@@ -63,15 +63,28 @@ first image in fold 2:
 
 ****************************************************
 FACE DETECTION RESULTS:
+The standard used for whether or not a face was correctly detected was that the center of the detected face
+must be within 40% of the average height and width of a face to true center. Additionally, the width and height of
+bounding box of detected face must have been > .5 and < 1.5 times the width and height of true bounding box. These
+parameters were chosen after experimenting with many values. Making ranges too wide allowed for non-correctly detected
+faces to be accidentally detected (false positives), while making ranges too small missed detections that were correct.
 
-2002/07/21/big/img_202
+Face detection accuracies were reported with these ranges used.
 
-file name: 2002/08/19/big/img_353
-found 5 of 5 faces in this image
-image num: 124
-file name: 2002/08/19/big/img_350
-found 0 of 5 faces in this image
-image num: 125
-file name: 2002/08/05/big/img_3392
-found 0 of 4 faces in this image
+For Haar cascade detector:
+scale factor values:
+1.3, 1326/2067 faces, 0.6415094339622641
+1.1, 379 out of 519 faces, 0.7302504816955684
+
+CNN detector:
+using cv2 read: 0.7418111753371869
+using misc read:
+grayscale images:
+alter size of images:
+
+avg height: 142.58539351061276
+avg width: 94.11600875170973
+over 5171 faces
+
+
 
