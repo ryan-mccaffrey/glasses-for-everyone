@@ -176,9 +176,55 @@ def retrieve_face_list(fold_num):
 
     return face_list
 
+def retrieve_manual_face_labels(fold_num, file_names):
+    file_list = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
+    rectangle_file = 'img/manual/rectangleList.pkl'
+
+    if os.path.exists(rectangle_file):
+        print("loading from pickle")
+        with open(rectangle_file, 'rb') as f:
+            face_list = pickle.load(f)
+            return face_list
+
+    with open(file_list, 'r') as f:
+        file_list = [x.rstrip() for x in f.readlines()]
+
+    rectangles = retrieve_face_list(fold_num)
+    face_list = []
+    for f in file_names:
+        for i, file in enumerate(file_list):
+            if f == file:
+                face_list.append(rectangles[i])
+                break
+
+    with open(rectangle_file, 'wb') as f:
+        pickle.dump(face_list, f)
+
+    return face_list
+
+
 # ============================================
 # Testing methods
 # ============================================
+
+def write_detections(fold_num, file_names, face_images, face_labels):
+    directory = 'pred/facenet/{:03}-{}{}{}'.format(int(factor*100), int(threshold[0]*10), int(threshold[1]*10), int(threshold[2]*10))
+    file = directory + '/fold-{}.pkl'.format(fold_num)
+
+    if os.path.exists(file):
+        return
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    all_predictions = []
+    for image in face_images:
+        predictions = cnn_face_detect(image)
+        all_predictions.append(predictions)
+
+
+    with open(file, 'wb') as f:
+        pickle.dump(all_predictions, f)
 
 def test_detection(fold_num, file_names, face_images, face_labels):
     total_faces, num_correct, false_pos = 0, 0, 0
@@ -196,7 +242,11 @@ def test_detection(fold_num, file_names, face_images, face_labels):
         faces_found_in_img = 0
         # for i in range(len(label_set)):
         for prediction in predictions:
-            x_p, y_p, w_p, h_p = prediction
+            if type(prediction) == dlib.dlib.rectangle:
+                # one off error on width and height? http://dlib.net/dlib/geometry/rectangle.h.html
+                x_p, y_p, w_p, h_p = prediction.left(), prediction.top(), prediction.width(), prediction.height()
+            else:
+                x_p, y_p, w_p, h_p = prediction
             center_px, center_py = x_p + w_p/2, y_p + h_p/2
             
             found_one = False
@@ -204,7 +254,7 @@ def test_detection(fold_num, file_names, face_images, face_labels):
                 x_l, y_l, w_l, h_l = label
                 center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
 
-                if (abs(center_lx - center_px) < .3*w_l and abs(center_ly - center_py) < .3*h_l
+                if (abs(center_lx - center_px) < .4*w_l and abs(center_ly - center_py) < .4*h_l
                     and .5*w_l < w_p and w_p < 1.5*w_l and .5*h_l < h_p and h_p < 1.5*h_l):
                     # num_correct += 1
                     faces_found_in_img += 1
@@ -212,6 +262,9 @@ def test_detection(fold_num, file_names, face_images, face_labels):
                     break
 
             if found_one is False:
+                # print('false pos found in {}'.format(file))
+                # print('num predictions: {}'.format(len(predictions)))
+                # print('num labels: {}'.format(len(label_set)))
                 false_pos += 1
 
         # in case faces are somehow really close together and overflow? shouldnt be possible now
@@ -311,11 +364,13 @@ def main():
         with open(img_list_file, 'r') as f:
             file_names = [x.rstrip() for x in f.readlines()]
         # num_correct, num_faces = test_detection(fold_num, file_names, misc_face_images, face_labels)
-        num_correct, num_faces, false_pos = test_detection(fold_num, file_names, face_images, face_labels)
+        # num_correct, num_faces, false_pos = test_detection(fold_num, file_names, face_images, face_labels)
+        print('writing fold num: {}'.format(fold_num))
+        write_detections(fold_num, file_names, face_images, face_labels)
 
-        total_correct += num_correct
-        total_faces += num_faces
-        total_false_pos += false_pos
+        # total_correct += num_correct
+        # total_faces += num_faces
+        # total_false_pos += false_pos
 
     delta = datetime.now() - start_time
     print('******** TOTALS ***********')
@@ -335,9 +390,28 @@ def test_one_image():
     test_on_one_image(file_names, face_labels)
     pass
 
+def test_manual_labels():
+    img_list_file = 'img/manual/image_list.txt'
+
+    start_time = datetime.now()
+    face_images = get_image_list_from_file(img_list_file)
+    with open(img_list_file, 'r') as f:
+        file_names = [x.rstrip() for x in f.readlines()]
+    face_labels = retrieve_manual_face_labels(1, file_names)
+
+    num_correct, num_faces, false_pos = test_detection(1, file_names, face_images, face_labels)
+    
+    delta = datetime.now() - start_time
+    print('found {}/{} faces'.format(num_correct, num_faces))
+    print('total false pos: {}'.format(false_pos))
+    print('accuracy: {}'.format(num_correct/num_faces))
+    print('Time elapsed (hh:mm:ss.ms) {}'.format(delta))
+    
+
 
 
 
 if __name__ == "__main__":
     main()
     # test_one_image()
+    # test_manual_labels()
