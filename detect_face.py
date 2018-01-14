@@ -204,7 +204,7 @@ def test_detection(fold_num, file_names, face_images, face_labels):
                 x_l, y_l, w_l, h_l = label
                 center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
 
-                if (abs(center_lx - center_px) < .4*AVG_FACE_WIDTH and abs(center_ly - center_py) < .4*AVG_FACE_HEIGHT
+                if (abs(center_lx - center_px) < .3*w_l and abs(center_ly - center_py) < .3*h_l
                     and .5*w_l < w_p and w_p < 1.5*w_l and .5*h_l < h_p and h_p < 1.5*h_l):
                     # num_correct += 1
                     faces_found_in_img += 1
@@ -240,11 +240,43 @@ def test_on_one_image(file_names, face_labels):
     print('found file at index {}'.format(i))
 
     # faces = cnn_face_detect(img)
-    faces = haar_face_detect(img, 1.3, 5)
+    faces = haar_face_detect(img, 1.3, 4)
+    label_set = face_labels[i]
     print("detections: (x,y,w,h)")
-    for (x,y,w,h) in faces:
-        print(x,y,w,h)
-        cv2.rectangle(img,(int(x),int(y)),(int(x+w),int(y+h)),(255,0,0),2)
+
+    # for i in range(len(label_set)):
+    for i, prediction in enumerate(faces):
+        print("*************** prediction {} *************".format(i))
+        x_p, y_p, w_p, h_p = prediction
+        print(x_p,y_p,w_p,h_p)
+        cv2.rectangle(img,(int(x_p),int(y_p)),(int(x_p+w_p),int(y_p+h_p)),(255,0,0),2)
+        center_px, center_py = x_p + w_p/2, y_p + h_p/2
+        
+        found_one = False
+        for label in label_set:
+            x_l, y_l, w_l, h_l = label
+            print(x_l, y_l, w_l, h_l)
+            center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
+
+            print(abs(center_lx - center_px) < .3*w_l)
+            print(abs(center_ly - center_py) < .3*h_l)
+            print(.5*w_l < w_p and w_p < 1.5*w_l)
+            print(.5*h_l < h_p and h_p < 1.5*h_l)
+            print("//////////////////")
+            if (abs(center_lx - center_px) < .3*w_l and abs(center_ly - center_py) < .3*h_l
+                and .5*w_l < w_p and w_p < 1.5*w_l and .5*h_l < h_p and h_p < 1.5*h_l):
+                # num_correct += 1
+                # faces_found_in_img += 1
+                found_one = True
+                break
+
+        if found_one is False:
+            print('false pos found for prediction {}'.format(i))
+            # false_pos += 1
+
+    # for (x,y,w,h) in faces:
+    #     print(x,y,w,h)
+    #     cv2.rectangle(img,(int(x),int(y)),(int(x+w),int(y+h)),(255,0,0),2)
 
     print('labels:')
     print(face_labels[i])
@@ -288,12 +320,19 @@ def main():
     delta = datetime.now() - start_time
     print('******** TOTALS ***********')
     print('found {}/{} faces'.format(total_correct, total_faces))
-    print('num false pos: {}'.format(false_pos))
+    print('total false pos: {}'.format(total_false_pos))
     print('accuracy: {}'.format(total_correct/total_faces))
     print('Time elapsed (hh:mm:ss.ms) {}'.format(delta))
 
 def test_one_image():
-    # test_on_one_image(file_names, face_labels)
+    fold_num = 5
+    img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
+    face_images = get_image_list_from_file(img_list_file)
+    face_labels = retrieve_face_list(fold_num)
+    with open(img_list_file, 'r') as f:
+        file_names = [x.rstrip() for x in f.readlines()]
+    
+    test_on_one_image(file_names, face_labels)
     pass
 
 
@@ -301,3 +340,4 @@ def test_one_image():
 
 if __name__ == "__main__":
     main()
+    # test_one_image()
