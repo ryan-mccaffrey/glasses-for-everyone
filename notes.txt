@@ -72,12 +72,20 @@ faces to be accidentally detected (false positives), while making ranges too sma
 Face detection accuracies were reported with these ranges used.
 
 For Haar cascade detector:
+explaining params: http://www.bogotobogo.com/python/OpenCV_Python/python_opencv3_Image_Object_Detection_Face_Detection_Haar_Cascade_Classifiers.php
+
 scale factor values: (time is hh:mm:ss.ms)
 1.3 and 5, 1326/2067 faces, 0.6415094339622641, 0:00:21.676171
 1.2 and 5, 1424/2067 faces, 0.6889211417513305, 0:00:30.377876
 1.1 and 5, 1542/2067 faces, 0.7460087082728593, 0:00:48.634285
 1.05 and 5, 1630/2067 faces, 0.7885824866956942, 0:01:29.261559
 1.01 and 5, 1828/2067 faces, 0.8843734881470731, 0:06:51.084492
+
+1.3 and 4, 1395/2067 faces, 0.6748911465892597, 0:00:25.266321
+1.2 and 4, 1476/2067 faces, 0.714078374455733, 0:00:30.429258
+1.1 and 4, 1577/2067 faces, 0.7629414610546686, 0:01:07.422060
+1.05 and 4, 1652/2067 faces, 0.799225931301403, 0:01:41.136731
+1.01 and 4, 1869/2067 faces, 0.9042089985486212, 0:08:23.776399
 
 1.3 and 3, 1445/2067 faces, 0.6990807934204161, 0:00:22.047011
 1.2 and 3, 1517/2067 faces, 0.733913884857281, 0:00:29.524132
@@ -87,11 +95,13 @@ scale factor values: (time is hh:mm:ss.ms)
 
 1.3 and 2, 1505/2067 faces, 0.7281083696178036, 0:00:22.130912
 1.2 and 2, 1560/2067 faces, 0.7547169811320755, 0:00:38.926712
+1.1 and 2, 1655/2067 faces, 0.8006773101112724, 0:00:51.998133
+1.05 and 2, 1735/2067 faces, 0.8393807450411224, 0:01:29.194843
+1.01 and 2, 1957/2067 faces, 0.9467827769714562, 0:08:04.406453
 
 CNN detector:
-using cv2 read: 1592/2067 faces, 0.7701983551040155, 0:16:10.188261
- 
-using misc read:
+factor .709: 1592/2067 faces, 0.7701983551040155, 0:16:10.188261
+factor .600: 1560/2067 faces, 0.7547169811320755, 0:16:07.263717
 grayscale images:
 alter size of images:
 

@@ -54,6 +54,10 @@ def cnn_face_detect(image):
         # for each face detection, compute bounding box and add as tuple
         face_detections = []
         for (x1, y1, x2, y2, acc) in bounding_boxes:
+            # skip detections with < 60% confidence
+            if acc < .6:
+                continue
+
             w = x2 - x1
             h = y2 - y1
             face_detections.append((x1, y1, w, h))
@@ -177,12 +181,12 @@ def retrieve_face_list(fold_num):
 # ============================================
 
 def test_detection(fold_num, file_names, face_images, face_labels):
-    total_faces, num_correct = 0, 0
+    total_faces, num_correct, false_pos = 0, 0, 0
     count = 0
     for image, label_set in zip(face_images, face_labels):
         file = file_names[count]
         count += 1
-        rows, cols, _ = image.shape
+        # rows, cols, _ = image.shape
         
         # use predictor
         predictions = haar_face_detect(image, 1.2, 5)
@@ -195,6 +199,7 @@ def test_detection(fold_num, file_names, face_images, face_labels):
             x_p, y_p, w_p, h_p = prediction
             center_px, center_py = x_p + w_p/2, y_p + h_p/2
             
+            found_one = False
             for label in label_set:
                 x_l, y_l, w_l, h_l = label
                 center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
@@ -203,7 +208,11 @@ def test_detection(fold_num, file_names, face_images, face_labels):
                     and .5*w_l < w_p and w_p < 1.5*w_l and .5*h_l < h_p and h_p < 1.5*h_l):
                     # num_correct += 1
                     faces_found_in_img += 1
+                    found_one = True
                     break
+
+            if found_one is False:
+                false_pos += 1
 
         # in case faces are somehow really close together and overflow? shouldnt be possible now
         if faces_found_in_img > len(predictions):
@@ -216,7 +225,7 @@ def test_detection(fold_num, file_names, face_images, face_labels):
 
     print("found {} out of {} faces in ".format(num_correct, total_faces))
     print("accuracy: {}".format(num_correct/total_faces))
-    return num_correct, total_faces
+    return num_correct, total_faces, false_pos
 
 def test_on_one_image(file_names, face_labels):
     name = '2002/08/05/big/img_3666'
@@ -259,23 +268,27 @@ def test_on_one_image(file_names, face_labels):
 # The main method is used to compare the accuracies of the FaceNet detector and Haar Cascade detector
 # 
 def main():
-    total_correct, total_faces = 0, 0
+    total_correct, total_faces, total_false_pos = 0, 0, 0
     start_time = datetime.now()
     for fold_num in [2,3,4,5]:
         img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
         face_images = get_image_list_from_file(img_list_file)
         face_labels = retrieve_face_list(fold_num)
-        misc_face_images = get_image_list_from_file_misc(img_list_file)
+        # misc_face_images = get_image_list_from_file_misc(img_list_file)
 
         with open(img_list_file, 'r') as f:
             file_names = [x.rstrip() for x in f.readlines()]
-        num_correct, num_faces = test_detection(fold_num, file_names, misc_face_images, face_labels)
+        # num_correct, num_faces = test_detection(fold_num, file_names, misc_face_images, face_labels)
+        num_correct, num_faces, false_pos = test_detection(fold_num, file_names, face_images, face_labels)
+
         total_correct += num_correct
         total_faces += num_faces
+        total_false_pos += false_pos
 
     delta = datetime.now() - start_time
     print('******** TOTALS ***********')
     print('found {}/{} faces'.format(total_correct, total_faces))
+    print('num false pos: {}'.format(false_pos))
     print('accuracy: {}'.format(total_correct/total_faces))
     print('Time elapsed (hh:mm:ss.ms) {}'.format(delta))
 
