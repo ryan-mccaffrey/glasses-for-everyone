@@ -86,6 +86,15 @@ def get_image_list_from_file(file_name):
             image_list.append(img)
     return image_list
 
+def get_image_list_from_file_misc(file_name):
+    image_list = []
+    with open(file_name, 'r') as f:
+        file_list = [x.rstrip() for x in f.readlines()]
+        for file in file_list:
+            img = misc.imread('{}/{}.jpg'.format(IMAGE_PREFIX, file))
+            image_list.append(img)
+    return image_list
+
 # From a given face label, which contains elliptical data:
 # <major_axis_radius minor_axis_radius angle center_x center_y 1>,
 # compute the bounding box for the face
@@ -256,10 +265,11 @@ def main():
         img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
         face_images = get_image_list_from_file(img_list_file)
         face_labels = retrieve_face_list(fold_num)
+        misc_face_images = get_image_list_from_file_misc(img_list_file)
 
         with open(img_list_file, 'r') as f:
             file_names = [x.rstrip() for x in f.readlines()]
-        num_correct, num_faces = test_detection(fold_num, file_names, face_images, face_labels)
+        num_correct, num_faces = test_detection(fold_num, file_names, misc_face_images, face_labels)
         total_correct += num_correct
         total_faces += num_faces
 
