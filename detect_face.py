@@ -1,7 +1,3 @@
-# from __future__ import absolute_import
-# from __future__ import division
-# from __future__ import print_function
-
 from datetime import datetime
 from scipy import misc
 import tensorflow as tf
@@ -9,6 +5,7 @@ import os
 import src.facenet.detect_face
 import cv2
 import matplotlib.pyplot as plt
+from helper import get_images_from_file_list, get_box_from_ellipse
 import math
 import pickle
 import dlib
@@ -16,14 +13,17 @@ import dlib
 # ============================================
 # Global variables
 # ============================================
-IMAGE_PREFIX = 'img/FDDB-pics'
+
 AVG_FACE_HEIGHT = 142.58539351061276
 AVG_FACE_WIDTH = 94.11600875170973
 
+# CNN global vars
 gpu_memory_fraction = 1.0
 minsize = 50 # minimum size of face
-threshold = [0.6, 0.7, 0.7]  # three steps's threshold
-factor = 0.709 # scale factor
+threshold = [0.5, 0.6, 0.7]  # three steps's threshold
+factor = 0.800 # scale factor
+
+# Haar and Dlib global vars
 face_cascade = cv2.CascadeClassifier('src/haarcascades/haarcascade_frontalface_default.xml')
 dlib_face_detector = dlib.get_frontal_face_detector()
 
@@ -32,14 +32,19 @@ dlib_face_detector = dlib.get_frontal_face_detector()
 # Face detection methods
 # ============================================
 
-# Uses the HOG face detection algorithm internal in the dlib library
-def hog_face_detect(image):
+# For a given image, uses the dlib face detection algorithm to predict
+# all of the faces present in the image. The algorithm used is based on 
+# a 29-layer ResNet network architecture. Returns a list of dlib.rectangle
+# objects
+def dlib_face_detect(image, upscale=1):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    rects = dlib_face_detector(gray, 1)
+    rects = dlib_face_detector(gray, upscale)
     return rects
 
-# Acknowledgement: much of this code was taken from the blog of Charles Jekel, who explains
-# how to use FaceNet to detect faces here: http://jekel.me/2017/How-to-detect-faces-using-facenet/
+# For a given image, uses the FaceNet CNN detector to predict all of the faces
+# present in the given image. Returns a list of bounding boxes (x,y,w,h) of the
+# faces. This code was largely borrowed from the blog of Charles Jekel, found here:
+# http://jekel.me/2017/How-to-detect-faces-using-facenet/
 def cnn_face_detect(image):
     # Configuring facenet in facenet/src/compare.py
     with tf.Graph().as_default():
@@ -64,77 +69,23 @@ def cnn_face_detect(image):
             
         return face_detections
 
-def haar_face_detect(image, scaleFactor, minNeighbors, use_grayscale=True, cascade=None):
-    # convert to grayscale if needed
+# For a given image, use the Haar Cascade detector provided by OpenCV to detect
+# all of the faces present in the given image. Uses the parameters scale_factor and
+# min_neighbors. Returns a list of bounding boxes (x,y,w,h) of the faces
+def haar_face_detect(image, scale_factor, min_neighbors, use_grayscale=True, cascade=None):
     if use_grayscale:
         image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
+    # Can provide a different cascade type if desired. Cascades found in src/haarcascades
     if not cascade:
-        return face_cascade.detectMultiScale(image, scaleFactor, minNeighbors)
+        return face_cascade.detectMultiScale(image, scale_factor, min_neighbors)
     else:
-        return cascade.detectMultiScale(image, scaleFactor, minNeighbors)
+        return cascade.detectMultiScale(image, scale_factor, min_neighbors)
 
 
 # ============================================
 # Helper functions
 # ============================================
-
-# for a given fold file that contains list of images in the fold,
-# populates a list of all of the images in the fold and returns it
-def get_image_list_from_file(file_name):
-    image_list = []
-    with open(file_name, 'r') as f:
-        file_list = [x.rstrip() for x in f.readlines()]
-        for file in file_list:
-            img = cv2.imread('{}/{}.jpg'.format(IMAGE_PREFIX, file))
-            image_list.append(img)
-    return image_list
-
-def get_image_list_from_file_misc(file_name):
-    image_list = []
-    with open(file_name, 'r') as f:
-        file_list = [x.rstrip() for x in f.readlines()]
-        for file in file_list:
-            img = misc.imread('{}/{}.jpg'.format(IMAGE_PREFIX, file))
-            image_list.append(img)
-    return image_list
-
-# From a given face label, which contains elliptical data:
-# <major_axis_radius minor_axis_radius angle center_x center_y 1>,
-# compute the bounding box for the face
-def get_box_from_label(major, minor, angle, h, k):
-    # lambda functions for computing x and y from parametric equiations for arbitrarily rotated ellipse
-    comp_x = lambda t, h, a, b, phi: h + a*math.cos(t)*math.cos(phi) - b*math.sin(t)*math.sin(phi)
-    comp_y = lambda t, k, a, b, phi: k + b*math.sin(t)*math.cos(phi) + a*math.cos(t)*math.sin(phi)
-
-    # before any computation done, check if angle is 0
-    if angle == 0:
-        return (h - minor/2, k - major/2, minor, major)
-
-    radians = (angle * math.pi) / 180
-
-    
-    # take gradient of ellipse equations with respect to t and set to 0. Yields
-    # 0 = dx/dt = -a*sin(t)*cos(phi) - b*cos(t)*sin(phi)
-    # 0 = dy/dt =  b*cos(t)*cos(phi) - a*sin(t)*sin(phi)
-    # and then solve for t
-    tan_t_x = -1 * minor * math.tan(radians) / major
-    tan_t_y = minor * (1/math.tan(radians)) / major
-    arctan_x = math.atan(tan_t_x)
-    arctan_y = math.atan(tan_t_y)
-    
-    # compute left and right of bounding box
-    x_min, x_max = comp_x(arctan_x, h, minor, major, radians), comp_x(arctan_x + math.pi, h, minor, major, radians)
-    if x_max < x_min:
-        x_min, x_max = x_max, x_min
-
-    # compute top and bottom of bounding box
-    y_min, y_max = comp_y(arctan_y, k, minor, major, radians), comp_y(arctan_y + math.pi, k, minor, major, radians)
-    if y_max < y_min:
-        y_min, y_max = y_max, y_min
-
-    # return tuple (x_min, y_min, width, height)
-    return (x_min, y_min, x_max - x_min, y_max - y_min)
 
 # For a given fold number [1-10], retrieve a nested list of bounding boxes for faces for each image
 # in the fold. Ex data: [[img1_face1, img1_face2], [img2_face1], ...] where each face bounding box
@@ -147,7 +98,6 @@ def retrieve_face_list(fold_num):
 
     # If this list has already been created, can load it from a pickle file
     if os.path.exists(rectangle_file):
-        print("loading from pickle")
         with open(rectangle_file, 'rb') as f:
             face_list = pickle.load(f)
     else:
@@ -164,7 +114,7 @@ def retrieve_face_list(fold_num):
                 faces = []
                 for i in range(num_faces):
                     major, minor, angle, h, k, _ = map(float, f.readline().rstrip().split())
-                    faces.append(get_box_from_label(major, minor, angle, h, k))
+                    faces.append(get_box_from_ellipse(major, minor, angle, h, k))
                 face_list.append(faces)
 
                 # go to next file
@@ -178,7 +128,7 @@ def retrieve_face_list(fold_num):
 
 def retrieve_manual_face_labels(fold_num, file_names):
     file_list = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
-    rectangle_file = 'img/manual/rectangleList.pkl'
+    rectangle_file = 'img/manual/face_labels.pkl'
 
     if os.path.exists(rectangle_file):
         print("loading from pickle")
@@ -207,11 +157,48 @@ def retrieve_manual_face_labels(fold_num, file_names):
 # Testing methods
 # ============================================
 
+# TODO: replace with a max flow?
+def compute_accuracy(labels, predictions):
+    faces_found, false_pos = 0, 0
+    for prediction in predictions:
+        if type(prediction) == dlib.dlib.rectangle:
+                x_p, y_p, w_p, h_p = prediction.left(), prediction.top(), prediction.right()-prediction.left(), prediction.bottom()-prediction.top()
+        else:
+            x_p, y_p, w_p, h_p = prediction
+        center_px, center_py = x_p + w_p/2, y_p + h_p/2
+
+        found_one = False
+        for label in labels:
+            x_l, y_l, w_l, h_l = label
+            center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
+
+            if (abs(center_lx - center_px) < .4*w_l and abs(center_ly - center_py) < .4*h_l
+                and .5*w_l < w_p and w_p < 1.5*w_l and .5*h_l < h_p and h_p < 1.5*h_l):
+                # num_correct += 1
+                faces_found += 1
+                found_one = True
+                break
+
+        if found_one is False:
+            false_pos += 1
+
+    if faces_found > len(labels):
+        diff = faces_found - len(labels)
+        false_pos += diff
+        faces_found = len(labels)
+
+    return faces_found, len(labels), false_pos
+
+
 def write_detections(fold_num, file_names, face_images, face_labels):
-    directory = 'pred/facenet/{:03}-{}{}{}'.format(int(factor*100), int(threshold[0]*10), int(threshold[1]*10), int(threshold[2]*10))
+    directory = 'pred/facenet/{:03}-{}{}{}'.format(int(factor*1000), int(threshold[0]*10), int(threshold[1]*10), int(threshold[2]*10))
     file = directory + '/fold-{}.pkl'.format(fold_num)
 
+    print(file)
+    # return
+
     if os.path.exists(file):
+        print('file {} already exists'.format(file))
         return
 
     if not os.path.exists(directory):
@@ -222,66 +209,92 @@ def write_detections(fold_num, file_names, face_images, face_labels):
         predictions = cnn_face_detect(image)
         all_predictions.append(predictions)
 
-
     with open(file, 'wb') as f:
         pickle.dump(all_predictions, f)
 
 def test_detection(fold_num, file_names, face_images, face_labels):
-    total_faces, num_correct, false_pos = 0, 0, 0
+    total_faces, total_num_correct, total_false_pos = 0, 0, 0
     count = 0
     for image, label_set in zip(face_images, face_labels):
         file = file_names[count]
         count += 1
-        # rows, cols, _ = image.shape
         
-        # use predictor
-        predictions = haar_face_detect(image, 1.2, 5)
-        # predictions = cnn_face_detect(image)
+        # choose detector
+        # predictions = haar_face_detect(image, 1.25, 5)
+        predictions = cnn_face_detect(image)
+        # predictions = dlib_face_detect(image)
 
-        total_faces += len(label_set)
-        faces_found_in_img = 0
-        # for i in range(len(label_set)):
-        for prediction in predictions:
-            if type(prediction) == dlib.dlib.rectangle:
-                # one off error on width and height? http://dlib.net/dlib/geometry/rectangle.h.html
-                x_p, y_p, w_p, h_p = prediction.left(), prediction.top(), prediction.width(), prediction.height()
-            else:
-                x_p, y_p, w_p, h_p = prediction
-            center_px, center_py = x_p + w_p/2, y_p + h_p/2
-            
-            found_one = False
-            for label in label_set:
-                x_l, y_l, w_l, h_l = label
-                center_lx, center_ly = x_l + w_l/2, y_l + h_l/2
+        num_correct, num_faces, false_pos = compute_accuracy(label_set, predictions)
 
-                if (abs(center_lx - center_px) < .4*w_l and abs(center_ly - center_py) < .4*h_l
-                    and .5*w_l < w_p and w_p < 1.5*w_l and .5*h_l < h_p and h_p < 1.5*h_l):
-                    # num_correct += 1
-                    faces_found_in_img += 1
-                    found_one = True
-                    break
+        total_num_correct += num_correct
+        total_faces += num_faces
+        total_false_pos += false_pos
 
-            if found_one is False:
-                # print('false pos found in {}'.format(file))
-                # print('num predictions: {}'.format(len(predictions)))
-                # print('num labels: {}'.format(len(label_set)))
-                false_pos += 1
+    # print("found {} out of {} faces in ".format(total_num_correct, total_faces))
+    # print("accuracy: {}".format(num_correct/total_faces))
+    return total_num_correct, total_faces, total_false_pos
 
-        # in case faces are somehow really close together and overflow? shouldnt be possible now
-        if faces_found_in_img > len(predictions):
-            faces_found_in_img = len(predictions)
+def test_dlib_detection(fold_num, file_names, face_images, face_labels, upscale):
+    total_faces, total_num_correct, total_false_pos = 0, 0, 0
+    for image, label_set in zip(face_images, face_labels):
+        predictions = dlib_face_detect(image, upscale=upscale)
+        num_correct, num_faces, false_pos = compute_accuracy(label_set, predictions)
+        total_faces += num_faces
+        total_num_correct += num_correct
+        total_false_pos += false_pos
+    return total_num_correct, total_faces, total_false_pos
 
-        num_correct += faces_found_in_img
+def test_haar_detection(fold_num, file_names, face_images, face_labels, scale_factor, min_neighbors):
+    total_faces, total_num_correct, total_false_pos = 0, 0, 0
+    for image, label_set in zip(face_images, face_labels):
+        predictions = haar_face_detect(image, scale_factor, min_neighbors)
+        num_correct, num_faces, false_pos = compute_accuracy(label_set, predictions)
+        total_faces += num_faces
+        total_num_correct += num_correct
+        total_false_pos += false_pos
+    return total_num_correct, total_faces, total_false_pos
 
-        # print('found {} of {} faces in this image'.format(faces_found_in_img, len(label_set)))
+def test_cnn_detection(fold_num, file_names, face_images, face_labels):
+    directory = 'predictions/facenet/{:03}-{}{}{}'.format(int(factor*1000), int(threshold[0]*10), int(threshold[1]*10), int(threshold[2]*10))
+    pkl_file = directory + '/fold-{}.pkl'.format(fold_num)
+    total_faces, total_num_correct, total_false_pos = 0, 0, 0
 
+    if os.path.exists(pkl_file):
+        print('found file, loading')
+        with open(pkl_file, 'rb') as f:
+            fold_predictions = pickle.load(f)
+        
+        # iterates over each image in the fold
+        for face_detections, labels in zip(fold_predictions, face_labels):
+            num_correct, num_faces, false_pos = compute_accuracy(labels, face_detections)
+            total_num_correct += num_correct
+            total_faces += num_faces
+            total_false_pos += false_pos
 
-    print("found {} out of {} faces in ".format(num_correct, total_faces))
-    print("accuracy: {}".format(num_correct/total_faces))
-    return num_correct, total_faces, false_pos
+        return total_num_correct, total_faces, total_false_pos
+
+    # predictions do not already exist for the fold, so make them and then write them
+    count = 0
+    fold_predictions = []
+    for image, label_set in zip(face_images, face_labels):
+        file = file_names[count]
+        count += 1
+        
+        predictions = cnn_face_detect(image)
+        fold_predictions.append(predictions)
+        num_correct, num_faces, false_pos = compute_accuracy(label_set, predictions)
+        total_num_correct += num_correct
+        total_faces += num_faces
+        total_false_pos += false_pos    
+
+    with open(pkl_file, 'wb') as f:
+        pickle.dump(fold_predictions, f)
+
+    return total_num_correct, total_faces, total_false_pos
+
 
 def test_on_one_image(file_names, face_labels):
-    name = '2002/08/05/big/img_3666'
+    name = '2002/08/05/big/img_3688'
     img = cv2.imread('img/FDDB-pics/{}.jpg'.format(name))
 
     index = -1
@@ -340,37 +353,30 @@ def test_on_one_image(file_names, face_labels):
     plt.show()
 
 
-    # file name: 2002/08/19/big/img_353
-    # found 5 of 5 faces in this image
-    # image num: 124
-    # file name: 2002/08/19/big/img_350
-    # found 0 of 5 faces in this image
-    # image num: 125
-    # file name: 2002/08/05/big/img_3392
-    # found 0 of 4 faces in this image
-
 
 # The main method is used to compare the accuracies of the FaceNet detector and Haar Cascade detector
 # 
-def main():
+def test_accuracy():
     total_correct, total_faces, total_false_pos = 0, 0, 0
     start_time = datetime.now()
     for fold_num in [2,3,4,5]:
         img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
-        face_images = get_image_list_from_file(img_list_file)
+        with open(img_list_file, 'r') as f:
+            file_names = [x.rstrip() for x in f.readlines()]
+
+        face_images = get_images_from_file_list(file_names)
         face_labels = retrieve_face_list(fold_num)
-        # misc_face_images = get_image_list_from_file_misc(img_list_file)
 
         with open(img_list_file, 'r') as f:
             file_names = [x.rstrip() for x in f.readlines()]
-        # num_correct, num_faces = test_detection(fold_num, file_names, misc_face_images, face_labels)
-        # num_correct, num_faces, false_pos = test_detection(fold_num, file_names, face_images, face_labels)
-        print('writing fold num: {}'.format(fold_num))
-        write_detections(fold_num, file_names, face_images, face_labels)
 
-        # total_correct += num_correct
-        # total_faces += num_faces
-        # total_false_pos += false_pos
+
+        # num_correct, num_faces, false_pos = test_detection(fold_num, file_names, face_images, face_labels)
+        num_correct, num_faces, false_pos = test_cnn_detection(fold_num, file_names, face_images, face_labels)
+
+        total_correct += num_correct
+        total_faces += num_faces
+        total_false_pos += false_pos
 
     delta = datetime.now() - start_time
     print('******** TOTALS ***********')
@@ -382,24 +388,25 @@ def main():
 def test_one_image():
     fold_num = 5
     img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
-    face_images = get_image_list_from_file(img_list_file)
-    face_labels = retrieve_face_list(fold_num)
     with open(img_list_file, 'r') as f:
         file_names = [x.rstrip() for x in f.readlines()]
-    
-    test_on_one_image(file_names, face_labels)
-    pass
 
-def test_manual_labels():
+    face_images = get_images_from_file_list(file_names)
+    face_labels = retrieve_face_list(fold_num)
+    test_on_one_image(file_names, face_labels)
+
+def test_on_manual_labels():
     img_list_file = 'img/manual/image_list.txt'
+    with open(img_list_file, 'r') as f:
+        file_names = [x.rstrip() for x in f.readlines()]
+    face_images = get_images_from_file_list(file_names)
 
     start_time = datetime.now()
-    face_images = get_image_list_from_file(img_list_file)
-    with open(img_list_file, 'r') as f:
-        file_names = [x.rstrip() for x in f.readlines()]
     face_labels = retrieve_manual_face_labels(1, file_names)
 
-    num_correct, num_faces, false_pos = test_detection(1, file_names, face_images, face_labels)
+    # num_correct, num_faces, false_pos = test_detection(1, file_names, face_images, face_labels)
+    num_correct, num_faces, false_pos = test_cnn_detection(1, file_names, face_images, face_labels)
+
     
     delta = datetime.now() - start_time
     print('found {}/{} faces'.format(num_correct, num_faces))
@@ -408,10 +415,65 @@ def test_manual_labels():
     print('Time elapsed (hh:mm:ss.ms) {}'.format(delta))
     
 
+def test_haar():
+    folds = [2,3,4,5]
+    # prepare fold info
+    fold_to_info_dict = {}
+    for fold_num in folds:
+        img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
+        with open(img_list_file, 'r') as f:
+            file_names = [x.rstrip() for x in f.readlines()]
+        face_images = get_images_from_file_list(file_names)
+        face_labels = retrieve_face_list(fold_num)
+        fold_to_info_dict[fold_num] = (file_names, face_images, face_labels)
 
 
+    for min_neighbors in [0,1,2,3,4,5]:
+        scale = 1.05
+        while scale < 1.5:
+            start = datetime.now()
+            total_correct, total_faces, total_false_pos = 0, 0, 0
+            for fold_num in folds:
+                file_names, face_images, face_labels = fold_to_info_dict[fold_num]
+                num_correct, num_faces, false_pos = test_haar_detection(fold_num, file_names, face_images, face_labels, scale, min_neighbors)
+                
+                total_correct += num_correct
+                total_faces += num_faces
+                total_false_pos += false_pos
+
+            delta = datetime.now() - start
+            print('minNeighbors={}, scale={}: accuracy={}, avgFalsePos={}, ttlFP={}, timing={}'.format(min_neighbors, scale, total_correct/total_faces, total_false_pos/len(folds), total_false_pos, delta))
+            scale += .05
+
+def test_dlib():
+    folds = [2,3,4,5]
+    # prepare fold info
+    fold_to_info_dict = {}
+    for fold_num in folds:
+        img_list_file = 'img/FDDB-folds/FDDB-fold-{:02}.txt'.format(fold_num)
+        with open(img_list_file, 'r') as f:
+            file_names = [x.rstrip() for x in f.readlines()]
+        face_images = get_images_from_file_list(file_names)
+        face_labels = retrieve_face_list(fold_num)
+        fold_to_info_dict[fold_num] = (file_names, face_images, face_labels)
+
+    for upscale in [0,1,2,3]:
+        start = datetime.now()
+        total_correct, total_faces, total_false_pos = 0, 0, 0
+        for fold_num in folds:
+            file_names, face_images, face_labels = fold_to_info_dict[fold_num]
+            num_correct, num_faces, false_pos = test_dlib_detection(fold_num, file_names, face_images, face_labels, upscale)
+            
+            total_correct += num_correct
+            total_faces += num_faces
+            total_false_pos += false_pos
+
+        delta = datetime.now() - start
+        print('upscale={}: accuracy={}, avgFalsePos={}, ttlFP={}, time: {}'.format(upscale, total_correct/total_faces, total_false_pos/len(folds), total_false_pos, delta))
 
 if __name__ == "__main__":
-    main()
+    # main()
+    test_haar()
+    # test_dlib()
     # test_one_image()
-    # test_manual_labels()
+    # test_on_manual_labels()
